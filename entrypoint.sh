@@ -2,30 +2,27 @@
 
 set -e
 
-# set the postgres database host, port, user and password according to the environment
-# and pass them as arguments to the odoo process if not present in the config file
+# Set DB connection info from env or defaults
 : ${HOST:=${DB_PORT_5432_TCP_ADDR:='db'}}
 : ${PORT:=${DB_PORT_5432_TCP_PORT:=5432}}
 : ${USER:=${DB_ENV_POSTGRES_USER:=${POSTGRES_USER:='odoo'}}}
-: ${PASSWORD:=${DB_ENV_POSTGRES_PASSWORD:=${POSTGRES_PASSWORD:='odoo18@2024'}}}
+: ${PASSWORD:=${DB_ENV_POSTGRES_PASSWORD:=${POSTGRES_PASSWORD:='odoo'}}}
 
-# install python packages
-# pip3 install pip --upgrade                # may cause errors
+# Install Python dependencies (optional; better in Dockerfile)
 pip3 install -r /etc/odoo/requirements.txt
 
-# sed -i 's|raise werkzeug.exceptions.BadRequest(msg)|self.jsonrequest = {}|g' /usr/lib/python3/dist-packages/odoo/http.py
-
-# Install logrotate if not already installed
+# Install logrotate if needed
 if ! dpkg -l | grep -q logrotate; then
     apt-get update && apt-get install -y logrotate
 fi
 
-# Copy logrotate config
+# Configure logrotate
 cp /etc/odoo/logrotate /etc/logrotate.d/odoo
 
-# Start cron daemon (required for logrotate)
-cron
+# Run logrotate manually instead of using cron
+logrotate /etc/logrotate.d/odoo --force
 
+# Prepare DB args
 DB_ARGS=()
 function check_config() {
     param="$1"
@@ -41,18 +38,19 @@ check_config "db_port" "$PORT"
 check_config "db_user" "$USER"
 check_config "db_password" "$PASSWORD"
 
+# Launch Odoo
 case "$1" in
     -- | odoo)
         shift
         if [[ "$1" == "scaffold" ]] ; then
             exec odoo "$@"
         else
-            wait-for-psql.py ${DB_ARGS[@]} --timeout=30
+            wait-for-psql.py "${DB_ARGS[@]}" --timeout=30
             exec odoo "$@" "${DB_ARGS[@]}"
         fi
         ;;
     -*)
-        wait-for-psql.py ${DB_ARGS[@]} --timeout=30
+        wait-for-psql.py "${DB_ARGS[@]}" --timeout=30
         exec odoo "$@" "${DB_ARGS[@]}"
         ;;
     *)

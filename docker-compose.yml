@@ -4,33 +4,39 @@ services:
     image: postgres:17
     user: root
     environment:
-      - POSTGRES_USER=odoo
-      - POSTGRES_PASSWORD=odoo18@2024
-      - POSTGRES_DB=postgres
-    restart: always             # run as a service
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+    restart: always
+    ports:
+      - "${DB_PORT}:5432"
     volumes:
-        - ./postgresql:/var/lib/postgresql/data
+      - ./postgresql:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
 
   odoo18:
+    container_name: ${INSTANCE_NAME}_odoo
     image: odoo:18
     user: root
     depends_on:
       - db
     ports:
-      - "10018:8069"
-      - "20018:8072" # live chat
-    tty: true
-    command: --
-    environment:
-      - HOST=db
-      - USER=odoo
-      - PASSWORD=odoo18@2024
-      - PIP_BREAK_SYSTEM_PACKAGES=1
+      - "${ODOO_PORT}:8069"
+      - "${ODOO_CHAT_PORT}:8072"
     volumes:
-      #- /etc/timezone:/etc/timezone:ro
-      #- /etc/localtime:/etc/localtime:ro
-      - ./entrypoint.sh:/entrypoint.sh
       - ./addons:/mnt/extra-addons
+      - //Users/motaouakkel/Documents/shared_addons:/mnt/extra-addons/shared
       - ./etc:/etc/odoo
-    restart: always             # run as a service
-    
+    environment:
+      - HOST=${HOST}
+      - USER=${DB_USER}
+      - PASSWORD=${POSTGRES_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - PIP_BREAK_SYSTEM_PACKAGES=1
+    restart: always
